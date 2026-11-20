@@ -177,13 +177,17 @@ class GroqVLM(VLMBackend):
 
 # ------------------------------------------------------------- Qwen2.5-VL local
 class QwenLocalVLM(VLMBackend):
-    """Qwen2.5-VL-3B in 4-bit. Peak VRAM ~3.2 GB with visual tokens capped at 640."""
+    """Qwen2.5-VL-3B in 4-bit NF4.
+
+    Measured on an RTX 3050 Ti Laptop (4 GB): weights 2.42 GB, peak 2.64 GB at
+    1280 visual tokens, ~10 s per frame (~50 s with the 5-call tiled scan).
+    """
 
     name = "qwen_local"
-    max_side = 896
+    max_side = 1024
     parallelism = 1  # one GPU: run tiles sequentially
     MIN_PIXELS = 256 * 28 * 28
-    MAX_PIXELS = 640 * 28 * 28
+    MAX_PIXELS = 1280 * 28 * 28
 
     def __init__(self, model: str, **kw):
         super().__init__(**kw)

@@ -21,3 +21,6 @@ data/samples/visdrone/
 .idea/
 .DS_Store
 Thumbs.db
+
+# large local downloads (wheels, models)
+.downloads/
