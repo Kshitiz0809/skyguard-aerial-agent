@@ -1,0 +1,21 @@
+{
+  "scene_summary": "Ground-mounted solar array of 7 rows; three modules show shattered glass / dark discolouration.",
+  "anomaly": "damaged_solar_panel",
+  "confidence": 0.86,
+  "anomalies": [
+    {
+      "type": "damaged_solar_panel",
+      "description": "Three modules (row 3 cols 6-7, row 5 col 12) with cracked glass.",
+      "confidence": 0.86,
+      "severity": "low",
+      "location_in_frame": "center"
+    }
+  ],
+  "objects": [
+    {
+      "label": "solar_panel",
+      "count": 98
+    }
+  ],
+  "aircraft_hazards": []
+}

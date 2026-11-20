@@ -1,0 +1,4 @@
+# Optional extras
+langchain-ollama>=0.3            # LLM_PROVIDER=ollama (local reasoning LLM)
+arize-phoenix>=8.0               # PHOENIX_ENABLED=true (local open-source tracing UI)
+openinference-instrumentation-langchain>=0.1

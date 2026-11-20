@@ -1,0 +1,28 @@
+{
+  "scene_summary": "Transmission-line corridor between two lattice towers; tree canopy at mid-span is growing into the conductors.",
+  "anomaly": "vegetation_encroachment_on_conductor",
+  "confidence": 0.84,
+  "anomalies": [
+    {
+      "type": "vegetation_encroachment_on_conductor",
+      "description": "Tree canopy at mid-span within ~2 m of the centre phase conductor.",
+      "confidence": 0.84,
+      "severity": "medium",
+      "location_in_frame": "center"
+    }
+  ],
+  "objects": [
+    {
+      "label": "transmission_tower",
+      "count": 2
+    },
+    {
+      "label": "tree",
+      "count": 43
+    }
+  ],
+  "aircraft_hazards": [
+    "high_voltage_lines",
+    "transmission_towers"
+  ]
+}

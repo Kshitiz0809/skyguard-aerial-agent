@@ -1,0 +1,32 @@
+{
+  "scene_summary": "Nadir view of an electrical substation with transformer yard, control building and perimeter fence; a dark vehicle is parked inside the fence near the south-east corner.",
+  "anomaly": "unauthorized_vehicle_near_fence",
+  "confidence": 0.91,
+  "anomalies": [
+    {
+      "type": "unauthorized_vehicle_near_fence",
+      "description": "Dark sedan parked inside the perimeter fence next to the south-east corner, away from the gate and driveway.",
+      "confidence": 0.91,
+      "severity": "high",
+      "location_in_frame": "bottom-right"
+    }
+  ],
+  "objects": [
+    {
+      "label": "car",
+      "count": 2
+    },
+    {
+      "label": "transformer",
+      "count": 2
+    },
+    {
+      "label": "building",
+      "count": 1
+    }
+  ],
+  "aircraft_hazards": [
+    "high_voltage_lines",
+    "busbar_gantries"
+  ]
+}

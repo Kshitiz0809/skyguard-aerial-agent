@@ -1,0 +1,34 @@
+{
+  "scene_summary": "Substation yard viewed from above; the west fence line appears breached and two people are inside the yard near the transformers.",
+  "anomaly": "unauthorized_person_inside_fence",
+  "confidence": 0.88,
+  "anomalies": [
+    {
+      "type": "unauthorized_person_inside_fence",
+      "description": "Two people inside the yard near transformer T1, close to a gap in the west fence.",
+      "confidence": 0.88,
+      "severity": "critical",
+      "location_in_frame": "center-left"
+    },
+    {
+      "type": "perimeter_fence_breach",
+      "description": "Section of the west fence appears cut or open.",
+      "confidence": 0.74,
+      "severity": "high",
+      "location_in_frame": "left"
+    }
+  ],
+  "objects": [
+    {
+      "label": "person",
+      "count": 2
+    },
+    {
+      "label": "transformer",
+      "count": 2
+    }
+  ],
+  "aircraft_hazards": [
+    "high_voltage_lines"
+  ]
+}
