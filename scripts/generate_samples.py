@@ -63,10 +63,13 @@ def car(d: ImageDraw.ImageDraw, cx, cy, color=(180, 30, 30), angle_vertical=Fals
         d.rounded_rectangle((box[0] + 10, box[1] + 5, box[0] + 20, box[3] - 5), 4, fill=(40, 60, 80))
 
 
-def person(d: ImageDraw.ImageDraw, cx, cy):
-    d.ellipse((cx + 4, cy + 6, cx + 26, cy + 18), fill=(35, 40, 30))  # long shadow
-    d.ellipse((cx - 9, cy - 6, cx + 9, cy + 6), fill=(30, 50, 120))  # shoulders
-    d.ellipse((cx - 5, cy - 5, cx + 5, cy + 5), fill=(60, 40, 30))  # head
+def person(d: ImageDraw.ImageDraw, cx, cy, shirt=(30, 50, 120)):
+    """Nadir view of a standing person (~0.5 m shoulders ≈ 24 px at 40 m AGL) with a long low-sun shadow."""
+    d.polygon([(cx + 6, cy + 4), (cx + 58, cy + 30), (cx + 52, cy + 40), (cx - 2, cy + 12)], fill=(45, 45, 40))  # shadow
+    d.ellipse((cx - 14, cy - 9, cx + 14, cy + 9), fill=shirt, outline=(15, 15, 20))  # shoulders/torso
+    d.ellipse((cx - 6, cy - 7, cx - 1, cy + 7), fill=tuple(max(0, c - 25) for c in shirt))  # arm
+    d.ellipse((cx + 1, cy - 7, cx + 6, cy + 7), fill=tuple(max(0, c - 25) for c in shirt))  # arm
+    d.ellipse((cx - 7, cy - 7, cx + 7, cy + 7), fill=(55, 40, 30), outline=(20, 15, 10))  # head/hair
 
 
 def transformer(d: ImageDraw.ImageDraw, x, y):
@@ -126,9 +129,14 @@ def make_substation_vehicle() -> tuple[Image.Image, dict]:
 
 def make_substation_person() -> tuple[Image.Image, dict]:
     img, d = substation_base(11)
-    fence(d, (180, 90, 900, 520), gap=((180, 380), (180, 430)))  # cut in west fence
-    person(d, 230, 405)
-    person(d, 300, 420)
+    # Cut west fence: erase a section and draw the mesh panel peeled outward.
+    d.line((180, 370, 180, 440), fill=(92, 128, 70), width=8)
+    d.polygon([(180, 370), (128, 382), (124, 432), (180, 440)], outline=(200, 200, 190), width=3)
+    for y in range(378, 438, 9):
+        d.line((180, y, 126, y + 4), fill=(170, 170, 160), width=1)
+    d.rectangle((96, 395, 118, 425), fill=(60, 60, 65), outline=(20, 20, 20))  # bag/tool left outside
+    person(d, 236, 402, shirt=(30, 50, 120))
+    person(d, 318, 448, shirt=(140, 30, 30))
     truth = {
         "scene_summary": "Substation yard viewed from above; the west fence line appears breached and two people are inside the yard near the transformers.",
         "anomaly": "unauthorized_person_inside_fence",

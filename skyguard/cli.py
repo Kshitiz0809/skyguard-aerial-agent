@@ -37,16 +37,31 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--battery", type=float, help="Override battery %%")
     ap.add_argument("--wind", type=float, help="Override wind (knots)")
     ap.add_argument("--auto", choices=["approve", "reject"], help="Non-interactive HITL decision")
+    ap.add_argument("--tiling", action="store_true", help="Thorough small-object scan: full frame + 4 zoomed tiles")
+    ap.add_argument("--list-groq-models", action="store_true", help="List models your GROQ_API_KEY can use, then exit")
     args = ap.parse_args(argv)
 
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")  # Windows consoles + the § in SOP citations
     settings = get_settings()
+
+    if args.list_groq_models:
+        from groq import Groq
+
+        if not settings.groq_api_key:
+            print("GROQ_API_KEY is not set in .env")
+            return 1
+        for m in sorted(Groq(api_key=settings.groq_api_key).models.list().data, key=lambda m: m.id):
+            print(f"{m.id:<50} ctx={getattr(m, 'context_window', '?')}")
+        print(f"\nIn use: GROQ_VLM_MODEL={settings.groq_vlm_model}  GROQ_MODEL={settings.groq_model}")
+        return 0
     tracing = setup_tracing(settings)
     overrides = {k: v for k, v in {"battery_pct": args.battery, "wind_kts": args.wind}.items() if v is not None}
     sim, spec = load_scenario(args.scenario, overrides)
     image = args.image or str(settings.samples_dir / spec["image"])
 
+    if args.tiling:
+        settings.vlm_tiling = "on"
     rt = MissionRuntime.create(sim, settings, vlm_backend=args.vlm, llm_provider=args.llm)
     graph = build_graph(rt)
     state, config = new_mission(image, args.scenario)
@@ -58,9 +73,11 @@ def main(argv: list[str] | None = None) -> int:
     snap = graph.get_state(config)
     s = snap.values
     _print("Telemetry", {k: s["telemetry"][k] for k in ("battery_pct", "wind_kts", "alt_m", "mode", "sector_name")})
-    _print("Perception", {k: s["perception"].get(k) for k in ("anomaly", "confidence", "scene_summary", "backend", "latency_ms", "fallback_error")})
+    _print("Perception", {k: s["perception"].get(k) for k in ("anomaly", "confidence", "scene_summary", "backend", "model", "tiles_analyzed", "latency_ms", "fallback_error")})
     _print("Retrieved SOP", [f"{p['citation']}: {p['text'][:90]}" for p in s["policies"]])
-    _print("Plan", {"provider": s["plan"]["provider"], "reasoning": s["plan"]["reasoning"], "actions": [(a["tool"], a["args"]) for a in s["plan"]["actions"]]})
+    plan_view = {k: s["plan"].get(k) for k in ("provider", "model", "llm_turns", "latency_ms", "tokens", "fallback_error") if s["plan"].get(k) is not None}
+    plan_view.update(reasoning=s["plan"]["reasoning"], actions=[(a["tool"], a["args"]) for a in s["plan"]["actions"]])
+    _print("Plan", plan_view)
     _print("Guardrail", {"warnings": s["guardrail"]["warnings"], "verdicts": [(d["action"]["tool"], d["verdict"], d["rules"], d["notes"]) for d in s["guardrail"]["decisions"]]})
     _print("Auto-executed (low-risk)", [(e["tool"], e["result"].get("mavlink", {}).get("mav_cmd")) for e in s.get("executed", [])])
 

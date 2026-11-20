@@ -18,6 +18,9 @@ Flight context: sector={sector}, altitude={alt_m:.0f} m AGL, near_high_voltage_l
 Report ONLY what is visible. Look for: unauthorized vehicles or people near/inside fences,
 perimeter breaches, fire/smoke, vegetation encroaching on power lines, damaged insulators,
 sagging conductors, oil leaks, damaged solar panels, obstacles/hazards to the aircraft.
+Nadir-view cues: a standing person appears as a small round head/shoulders blob, often with a
+long thin shadow; a vehicle is a small rounded rectangle with dark windscreens; a cut fence shows
+as a missing or bent-out section of the fence line. Scan every region, especially along fences.
 
 Return a single JSON object, no prose, with exactly these keys:
 {{
@@ -78,6 +81,7 @@ class PerceptionResult(BaseModel):
     backend: str = ""
     model: str = ""
     latency_ms: float = 0.0
+    tiles_analyzed: int = 0
     raw_text: str = ""
 
     def normalise(self) -> "PerceptionResult":

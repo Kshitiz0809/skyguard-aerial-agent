@@ -33,7 +33,7 @@ class Settings:
     # "groq" | "ollama" | "rules"  (rules = deterministic offline planner)
     llm_provider: str = field(default_factory=lambda: _env("LLM_PROVIDER", "auto"))
     groq_api_key: str = field(default_factory=lambda: _env("GROQ_API_KEY"))
-    groq_model: str = field(default_factory=lambda: _env("GROQ_MODEL", "llama-3.3-70b-versatile"))
+    groq_model: str = field(default_factory=lambda: _env("GROQ_MODEL", "openai/gpt-oss-120b"))
     ollama_model: str = field(default_factory=lambda: _env("OLLAMA_MODEL", "qwen2.5:7b"))
     ollama_base_url: str = field(default_factory=lambda: _env("OLLAMA_BASE_URL", "http://localhost:11434"))
 
@@ -41,11 +41,17 @@ class Settings:
     # "groq" | "qwen_local" | "hf_api" | "mock" | "auto"
     vlm_backend: str = field(default_factory=lambda: _env("VLM_BACKEND", "auto"))
     groq_vlm_model: str = field(
-        default_factory=lambda: _env("GROQ_VLM_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
+        default_factory=lambda: _env("GROQ_VLM_MODEL", "qwen/qwen3.8-27b")
     )
     qwen_local_model: str = field(default_factory=lambda: _env("QWEN_LOCAL_MODEL", "Qwen/Qwen2.5-VL-3B-Instruct"))
     hf_token: str = field(default_factory=lambda: _env("HF_TOKEN"))
     hf_vlm_model: str = field(default_factory=lambda: _env("HF_VLM_MODEL", "Qwen/Qwen2.5-VL-7B-Instruct"))
+    # Tiled (SAHI-style) inference for small objects: full frame + 4 zoomed tiles = 5 VLM calls.
+    # Off by default: Groq's free tier allows ~8k tokens/min/model and one image costs ~2.4k.
+    vlm_tiling: str = field(default_factory=lambda: _env("VLM_TILING", "off").lower())
+
+    def vlm_tiling_for(self, backend: str) -> bool:
+        return backend != "mock" and self.vlm_tiling in {"1", "true", "on", "yes"}
 
     # --- RAG -------------------------------------------------------------
     sop_dir: Path = field(default_factory=lambda: ROOT_DIR / "data" / "sop")

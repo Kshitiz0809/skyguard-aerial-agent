@@ -83,7 +83,8 @@ Every scenario's telemetry (battery, wind, altitude, HV proximity) can be change
 
 **Local Qwen2.5-VL-3B (4-bit, 4 GB GPU):**
 ```bash
-pip install -r requirements-gpu.txt     # CUDA PyTorch + transformers + bitsandbytes (~3 GB download)
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130   # CUDA build (~2.5 GB)
+pip install -r requirements-gpu.txt     # transformers + accelerate + bitsandbytes
 # first run downloads the model weights (~7.5 GB) from Hugging Face
 python -m skyguard.cli --vlm qwen_local
 ```

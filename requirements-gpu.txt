@@ -1,9 +1,13 @@
 # Optional: run Qwen2.5-VL-3B-Instruct locally in 4-bit (VLM_BACKEND=qwen_local).
-# Tested target: RTX 3050 Ti Laptop (4 GB). Needs an NVIDIA driver with CUDA 13 support.
-# Older drivers: change cu130 to cu126.
---extra-index-url https://download.pytorch.org/whl/cu130
-torch
-torchvision
+# Tested target: RTX 3050 Ti Laptop (4 GB), NVIDIA driver with CUDA 13 support.
+#
+# IMPORTANT: install PyTorch from the CUDA index FIRST. With --extra-index-url,
+# pip may grab a newer CPU-only torch from PyPI instead:
+#
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
+#   pip install -r requirements-gpu.txt
+#
+# (Older drivers: use cu126 instead of cu130.)
 transformers>=4.49
 accelerate>=1.0
 bitsandbytes>=0.45

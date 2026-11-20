@@ -73,6 +73,13 @@ with st.sidebar:
     default_llm = settings.resolved_llm_provider()
     vlm_choice = st.selectbox("Vision model (VLM)", vlm_options, index=vlm_options.index(default_vlm) if default_vlm in vlm_options else 0)
     llm_choice = st.selectbox("Reasoning LLM", llm_options, index=llm_options.index(default_llm) if default_llm in llm_options else 0)
+    tiling = st.toggle(
+        "Thorough small-object scan",
+        value=settings.vlm_tiling_for(vlm_choice),
+        disabled=vlm_choice == "mock",
+        help="Full frame + 4 zoomed tiles (5 VLM calls), merged SAHI-style. Catches ~25 px people the "
+        "full frame misses. About 1 min on Groq's free tier (8k tokens/min).",
+    )
     if not has_groq:
         st.info("Add `GROQ_API_KEY` to `.env` to enable the Groq VLM and the Llama-3.3-70B planner. Offline mode uses the mock VLM and the rules planner.")
 
@@ -119,9 +126,11 @@ if launch:
 
     try:
         sim, _ = load_scenario(scenario, {"battery_pct": float(battery), "wind_kts": float(wind), "alt_m": float(alt), "near_hv_lines": near_hv})
+        vlm = get_vlm(vlm_choice)
+        vlm.tiling = tiling and vlm_choice != "mock"
         rt = MissionRuntime(
             sim=sim,
-            vlm=get_vlm(vlm_choice),
+            vlm=vlm,
             store=get_store(settings.rag_backend),
             planner=get_planner(llm_choice),
             settings=settings,
@@ -233,7 +242,11 @@ tab_p, tab_r, tab_plan, tab_g, tab_x, tab_a = st.tabs(["👁️ Perception", "�
 
 with tab_p:
     st.markdown(f"**{perception.get('scene_summary', '')}**")
-    st.caption(f"Backend `{perception.get('backend')}` · model `{perception.get('model')}` · {perception.get('latency_ms')} ms")
+    tiles = perception.get("tiles_analyzed") or 0
+    st.caption(
+        f"Backend `{perception.get('backend')}` · model `{perception.get('model')}` · {perception.get('latency_ms')} ms"
+        + (f" · tiled scan: full frame + {tiles} tiles" if tiles else "")
+    )
     if perception.get("fallback_error"):
         st.warning(f"VLM call failed, fell back to mock: {perception['fallback_error']}")
     if perception.get("anomalies"):

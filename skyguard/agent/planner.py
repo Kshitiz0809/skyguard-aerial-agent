@@ -21,7 +21,9 @@ You receive: (1) structured VLM perception of the current camera frame, (2) live
 
 Decide what to do NOW by calling tools. Rules:
 - Ground every decision in the retrieved clauses; mention clause IDs (e.g. "SOP-SUB-B-v1.3 §4.1") in your text.
-- Call ALL tools you want executed in this single response (parallel tool calls are fine).
+- Propose EVERY action the SOP requires for this situation (e.g. log + zoom + snapshot + alert), not just one.
+  You may call several tools at once or one per turn; each call is acknowledged as "queued".
+- When the plan is complete, reply WITHOUT tool calls: a short justification citing the clause IDs.
 - LOW-RISK tools (log_incident, zoom_camera, capture_snapshot, alert_security_team) run automatically.
 - HIGH-RISK tools (reroute_drone, change_altitude, trigger_emergency_rtl) pause for human approval;
   only propose them when the SOP calls for it. Reroute targets must be real lat/lon near the current position.
@@ -115,7 +117,9 @@ class Planner:
             if not settings.groq_api_key:
                 raise RuntimeError("LLM_PROVIDER=groq but GROQ_API_KEY is not set in .env")
             self.model = settings.groq_model
-            self.llm = ChatGroq(model=self.model, api_key=settings.groq_api_key, temperature=0.1, max_retries=2)
+            self.llm = ChatGroq(
+                model=self.model, api_key=settings.groq_api_key, temperature=0.1, max_retries=5, max_tokens=1024
+            )
         elif self.provider == "ollama":
             try:
                 from langchain_ollama import ChatOllama
@@ -130,28 +134,93 @@ class Planner:
         if self.llm is not None:
             self.llm_with_tools = self.llm.bind_tools(llm_tool_schemas())
 
+    MAX_STEPS = 8
+
+    def _tool_loop(self, perception: dict, telemetry: dict, policies: list[dict], started: float) -> dict[str, Any]:
+        """Multi-turn tool-calling loop.
+
+        Tools are NOT executed here: each call is acknowledged as "queued" so the
+        model can keep proposing (models like gpt-oss emit ~1 call per turn).
+        The queued plan then goes to the guardrail and, if high-risk, to a human.
+        """
+        from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
+
+        self._retries = 0
+        messages: list = [SystemMessage(SYSTEM_PROMPT), HumanMessage(_context_message(perception, telemetry, policies))]
+        actions: list[dict] = []
+        seen: set[str] = set()
+        texts: list[str] = []
+        thoughts: list[str] = []
+        tokens = {"input_tokens": 0, "output_tokens": 0}
+        steps = 0
+        notes: list[str] = []
+        for steps in range(1, self.MAX_STEPS + 1):
+            try:
+                msg = self._invoke_with_retry(messages)
+            except Exception as exc:
+                if not actions:
+                    raise  # nothing salvageable -> caller falls back to the rules planner
+                notes.append(f"Stopped after step {steps}: {type(exc).__name__}; kept {len(actions)} proposed actions.")
+                break
+            messages.append(msg)
+            usage = getattr(msg, "usage_metadata", None) or {}
+            for k in tokens:
+                tokens[k] += int(usage.get(k) or 0)
+            content = msg.content if isinstance(msg.content, str) else json.dumps(msg.content)
+            if content.strip():
+                texts.append(content.strip())
+            if (r := (msg.additional_kwargs or {}).get("reasoning_content")):
+                thoughts.append(str(r).strip())
+            if not msg.tool_calls:
+                break
+            for tc in msg.tool_calls:
+                key = f"{tc['name']}:{json.dumps(tc.get('args', {}), sort_keys=True)}"
+                dup = key in seen
+                if not dup:
+                    seen.add(key)
+                    actions.append(make_action(tc["name"], tc.get("args", {}), reason="llm", source=self.provider))
+                ack = {
+                    "status": "duplicate_ignored" if dup else "queued",
+                    "note": "Queued for safety-guardrail validation (high-risk tools also need human approval). "
+                    "Call any remaining SOP-required tools, or reply without tool calls to finish.",
+                }
+                messages.append(ToolMessage(content=json.dumps(ack), tool_call_id=tc["id"]))
+        reasoning = "\n\n".join(texts) or (thoughts[-1][:1200] if thoughts else "(model returned tool calls only)")
+        out = {
+            "reasoning": reasoning,
+            "actions": actions,
+            "provider": self.provider,
+            "model": self.model,
+            "llm_turns": steps,
+            "latency_ms": round((time.perf_counter() - started) * 1000, 1),
+            "tokens": tokens if any(tokens.values()) else None,
+        }
+        if notes or self._retries:
+            out["notes"] = notes + ([f"{self._retries} malformed tool call(s) retried"] if self._retries else [])
+        return out
+
+    def _invoke_with_retry(self, messages: list, attempts: int = 3):
+        """Retry Groq 'tool_use_failed' (model emitted invalid tool-call JSON) with a bit more temperature."""
+        last: Exception | None = None
+        for i in range(attempts):
+            runnable = self.llm_with_tools if i == 0 else self.llm_with_tools.bind(temperature=0.3 + 0.2 * i)
+            try:
+                return runnable.invoke(messages)
+            except Exception as exc:
+                text = str(exc)
+                if "tool_use_failed" not in text and "parse tool call" not in text.lower():
+                    raise
+                self._retries += 1
+                last = exc
+        raise last  # type: ignore[misc]
+
     def plan(self, perception: dict, telemetry: dict, policies: list[dict]) -> dict[str, Any]:
         started = time.perf_counter()
         if self.llm is None:
             out = rules_plan(perception, telemetry, policies)
             return {**out, "provider": "rules", "model": self.model, "latency_ms": round((time.perf_counter() - started) * 1000, 1)}
         try:
-            from langchain_core.messages import HumanMessage, SystemMessage
-
-            msg = self.llm_with_tools.invoke(
-                [SystemMessage(SYSTEM_PROMPT), HumanMessage(_context_message(perception, telemetry, policies))]
-            )
-            actions = [make_action(tc["name"], tc.get("args", {}), reason="llm", source=self.provider) for tc in msg.tool_calls]
-            content = msg.content if isinstance(msg.content, str) else json.dumps(msg.content)
-            usage = getattr(msg, "usage_metadata", None) or {}
-            return {
-                "reasoning": content.strip() or "(model returned tool calls only)",
-                "actions": actions,
-                "provider": self.provider,
-                "model": self.model,
-                "latency_ms": round((time.perf_counter() - started) * 1000, 1),
-                "tokens": {k: usage.get(k) for k in ("input_tokens", "output_tokens")} if usage else None,
-            }
+            return self._tool_loop(perception, telemetry, policies, started)
         except Exception as exc:  # network / rate limit / malformed tool call -> safe fallback
             out = rules_plan(perception, telemetry, policies)
             return {
