@@ -24,8 +24,8 @@ flowchart LR
 | Layer | Tool | Notes |
 |---|---|---|
 | Orchestration | **LangGraph** | `StateGraph`, `InMemorySaver` checkpointer, `interrupt_before=["execute_high_risk"]`, `update_state` + resume |
-| Vision-language model | **Llama-4-Scout on Groq** (default) · **Qwen2.5-VL-3B-Instruct 4-bit** (local, fits a 4 GB GPU) · HF Inference · mock | All backends share one prompt and one Pydantic-validated JSON schema |
-| Reasoning LLM | **Llama-3.3-70B on Groq** · Ollama · deterministic SOP playbook | Native parallel tool calling; the rules planner is the offline default and the fallback when the LLM fails |
+| Vision-language model | **Qwen3.8-27B vision on Groq** (default) · **Qwen2.5-VL-3B-Instruct 4-bit** (local, fits a 4 GB GPU) · HF Inference · mock | All backends share one prompt and one Pydantic-validated JSON schema. An optional **SAHI-style tiled scan** (full frame + 4 zoomed tiles) catches ~25 px people that a single pass misses |
+| Reasoning LLM | **gpt-oss-120b on Groq** · Ollama · deterministic SOP playbook | A multi-turn tool-calling loop handles models that emit one call per turn, retries malformed tool-call JSON, and falls back to the rules planner if the LLM is unreachable |
 | Vector DB | **ChromaDB** (local, persistent) · BM25 fallback | One numbered SOP clause per chunk, so every decision cites e.g. `SOP-SUB-B-v1.3 §6.2` |
 | Drone | **Python drone simulator** + **pymavlink** | GPS, altitude, battery drain under wind, flight modes, frame queue; byte-exact `COMMAND_LONG` / `COMMAND_INT` / `STATUSTEXT` |
 | Observability | **LangSmith** (free tier) or **Arize Phoenix** (local) + JSONL audit trail | Per-node timings in graph state |
@@ -79,7 +79,7 @@ Every scenario's telemetry (battery, wind, altitude, HV proximity) can be change
 
 ## Optional backends
 
-**Groq (recommended):** create a free key at https://console.groq.com/keys and set `GROQ_API_KEY` in `.env`. This turns on both the VLM and the 70B planner.
+**Groq (recommended):** create a free key at https://console.groq.com/keys and set `GROQ_API_KEY` in `.env`. This turns on both the VLM and the planner. Groq changes its model list over time; `python -m skyguard.cli --list-groq-models` shows what your key can use. The free tier allows about 8k tokens per minute per model and one image costs about 2.4k, so the tiled scan (`--tiling`, or the sidebar toggle) takes about a minute there.
 
 **Local Qwen2.5-VL-3B (4-bit, 4 GB GPU):**
 ```bash
@@ -111,7 +111,7 @@ skyguard/
   observability.py          LangSmith / Phoenix setup, JSONL audit log
 data/sop/                   Dummy site SOP + flight-manual summary (RAG corpus)
 data/samples/               Synthetic aerial frames + ground-truth JSON
-tests/                      19 offline tests (unit, graph HITL, Streamlit AppTest)
+tests/                      26 offline tests (unit, graph HITL, LLM loop, tiling, Streamlit AppTest)
 ```
 
 ## Disclaimer
